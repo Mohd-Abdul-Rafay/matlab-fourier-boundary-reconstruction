@@ -146,16 +146,17 @@ The system functions as a classical spectral shape modeling framework for comput
 
 ## Author
 
-**Abdul Rafay Mohd**  
-Artificial Intelligence | Medical AI | Computer Vision 
+- **Abdul Rafay Mohd**  
+- **Ziya Mubeen Ahmed Mohammed**
+- **Abdul Sohail Mohammed**
 
 ---
 
 ## Contributors
 
-- Abdul Rafay Mohd — Algorithm design, MATLAB implementation, UI architecture, Fourier reconstruction logic
-- Ziya Mubeen Ahmed Mohammed — Analytical evaluation and experimentation
-- Abdul Sohail Mohammed — Report writing and presentation development
+- Abdul Rafay Mohd — Algorithm design, MATLAB implementation, application architecture, and Fourier-based boundary reconstruction framework
+- Ziya Mubeen Ahmed Mohammed — Experimental analysis and evaluation
+- Abdul Sohail Mohammed — Technical documentation and presentation development
 
 ---
 
