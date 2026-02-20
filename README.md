@@ -12,13 +12,11 @@ The application enables real-time reconstruction by adjusting the number of reta
 
 A 2D object boundary can be represented as a complex sequence:
 ```text
-Applying the Discrete Fourier Transform:
-
-Z(m) = ∑ z(k) e^{-i 2πmk/N}
+z(k) = x(k) + i y(k)
 ```
 Applying the Discrete Fourier Transform:
 ```text
-Z(m) = FFT(z(k))
+Z(m) = ∑ z(k) e^{-i 2πmk/N}
 ```
 Truncating high-frequency components produces a spectrally compressed boundary representation.
 
