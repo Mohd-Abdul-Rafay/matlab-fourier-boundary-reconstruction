@@ -1,0 +1,289 @@
+classdef Project_Group10 < matlab.apps.AppBase
+
+    % Properties that correspond to app components
+    properties (Access = public)
+        UIFigure               matlab.ui.Figure
+        Slider                 matlab.ui.control.Slider
+        SliderLabel            matlab.ui.control.Label
+        SaveDescriptorsButton  matlab.ui.control.Button
+        Image3                 matlab.ui.control.Image
+        Image                  matlab.ui.control.Image
+        LoadImageButton        matlab.ui.control.Button
+    end
+
+    % Callbacks that handle component events
+    methods (Access = private)
+
+        % Button pushed function: LoadImageButton
+        function LoadImageButtonPushed(app, event)
+            [filename, pathname] = uigetfile({'*.jpg;*.png;*.jpeg;*.bmp;*.tif', ...
+                '(*.jpg,*jpeg,*.png,*.bmp,*.tif)'}, 'Browse Image');
+            filename = strcat(pathname, filename);
+            if isequal(filename,0)
+                return; % no file is selected
+            else
+                img = imread(filename);
+                input_image = cat(3,img,img,img);
+                app.Image.ImageSource = uint8(input_image);
+            end
+            
+        end
+
+        % Value changing function: Slider
+        function SliderValueChanging(app, event)
+            changingValue = event.Value;
+            app.Slider.Value = changingValue;
+            img = app.Image.ImageSource;
+
+            % Convert the image to grayscale if it's not already grayscale
+            if size(img, 3) == 3
+                img_gray = rgb2gray(img);
+            else
+                img_gray = img;
+            end
+
+            % Apply edge detection using morphological operators
+            se = strel('disk', 5); % Define a disk-shaped structuring element
+            img_dilated = imdilate(img_gray, se); % Dilate the image
+            edges = img_dilated - img_gray; % Extract edges by subtracting the eroded image from the dilated image
+
+            % Binarizing the edges for further processing
+            binary_img = imbinarize(edges, "global");
+
+            % Get the current threshold value from the edit field
+            threshold = changingValue;
+            if threshold < 1
+                r = threshold + 1;
+            else
+                r = threshold;
+            end
+
+            reconstructed_img = fourierShapeDescriptor(binary_img,r);
+
+            reconstructed_img_rgb = cat(3,reconstructed_img,reconstructed_img,reconstructed_img);
+
+            app.Image3.ImageSource = (reconstructed_img_rgb);
+
+            function shape = fourierShapeDescriptor(img, r)
+                % Compute boundary coordinates
+                boundary = bwboundaries(img);
+                x_corodinates = boundary{1, 1}(:, 1);
+                y_coordinates = boundary{1, 1}(:, 2);
+                normalized_x = (x_corodinates - mean(x_corodinates)) / std(x_corodinates);
+                normalized_y = (y_coordinates - mean(y_coordinates)) / std(y_coordinates);
+                complex_coordinates = normalized_x + 1i * normalized_y;
+    
+                % Number of boundary points
+                N = numel(x_corodinates);
+                % Number of Fourier coefficients to keep
+                n = round(N / r);
+                nstart = floor(N / 2) - floor(n / 2) + 1;
+                nend = floor(N / 2) + floor(n / 2) + 1;
+                if nend > N
+                    nend = N;
+                end
+    
+                % Compute Fourier shape descriptors
+                fourier_descriptors = fftshift(fft(complex_coordinates));
+                fourier_shape = ifftshift([zeros(nstart - 1, 1); fourier_descriptors(nstart:nend); zeros(N - nend, 1)]);
+                fourier_shape = ifft(fourier_shape);
+                fourier_shape_x = real(fourier_shape);
+                fourier_shape_y = imag(fourier_shape);
+    
+                % Scale and shift the reconstructed shape to match original boundary
+                fourier_shape_x = round(mean(x_corodinates) + fourier_shape_x * std(x_corodinates));
+                fourier_shape_y = round(mean(y_coordinates) + fourier_shape_y * std(y_coordinates));
+    
+                % Create a binary image to represent the reconstructed shape
+                shape = zeros(size(img));
+                for i = 1:numel(fourier_shape_x)
+                    shape(fourier_shape_x(i), fourier_shape_y(i)) = 1;
+                end
+            end 
+
+        end
+
+        % Button pushed function: SaveDescriptorsButton
+        function SaveDescriptorsButtonPushed(app, event)
+            % Get the current threshold value from the slider
+            changingValue = app.Slider.Value;
+            
+            img = app.Image.ImageSource;
+
+            % Convert the image to grayscale if it's not already grayscale
+            if size(img, 3) == 3
+                img_gray = rgb2gray(img);
+            else
+                img_gray = img;
+            end
+
+            % Apply edge detection using morphological operators
+            se = strel('disk', 5); % Define a disk-shaped structuring element
+            img_dilated = imdilate(img_gray, se); % Dilate the image
+            edges = img_dilated - img_gray; % Extract edges by subtracting the eroded image from the dilated image
+
+            % Binarizing the edges for further processing
+            binary_img = imbinarize(edges, "global");
+
+            % Get the current threshold value from the slider
+            threshold = changingValue;
+            if threshold < 1
+                r = threshold + 1;
+            else
+                r = threshold;
+            end
+          
+
+            % Calculate Fourier shape descriptors
+            descriptors = fourierShapeDescriptor(binary_img, r);
+
+            % Prompt the user to select a file location and name for saving
+            [filename, pathname] = uiputfile('*.txt', 'Save Descriptors');
+
+            % Check if the user cancelled the operation
+            if isequal(filename, 0)
+                return; % User cancelled
+            else
+                % Open the file for writing
+                fileID = fopen(fullfile(pathname, filename), 'w');
+
+                % Check if the file was opened successfully
+                if fileID == -1
+                    % Display an error message if the file could not be opened
+                    errordlg('Error: Unable to open file for writing.', 'File Open Error');
+                    return;
+                end
+
+                % Write the descriptors to the file
+                fprintf(fileID, '%f\n', descriptors);
+
+                % Close the file
+                fclose(fileID);
+
+                % Display a message indicating that the descriptors have been saved
+                msgbox('Descriptors have been successfully saved.', 'Descriptors Saved');
+            end
+
+            function shape = fourierShapeDescriptor(img, r)
+                % Compute boundary coordinates
+                boundary = bwboundaries(img);
+                x_corodinates = boundary{1, 1}(:, 1);
+                y_coordinates = boundary{1, 1}(:, 2);
+                normalized_x = (x_corodinates - mean(x_corodinates)) / std(x_corodinates);
+                normalized_y = (y_coordinates - mean(y_coordinates)) / std(y_coordinates);
+                complex_coordinates = normalized_x + 1i * normalized_y;
+    
+                % Number of boundary points
+                N = numel(x_corodinates);
+                % Number of Fourier coefficients to keep
+                n = round(N / r);
+                nstart = floor(N / 2) - floor(n / 2) + 1;
+                nend = floor(N / 2) + floor(n / 2) + 1;
+                if nend > N
+                    nend = N;
+                end
+    
+                % Compute Fourier shape descriptors
+                fourier_descriptors = fftshift(fft(complex_coordinates));
+                % Reconstruct the shape
+                fourier_shape = ifftshift([zeros(nstart - 1, 1); fourier_descriptors(nstart:nend); zeros(N - nend, 1)]);
+                fourier_shape = ifft(fourier_shape);
+                % Extract real and imaginary values of the shape
+                fourier_shape_x = real(fourier_shape);
+                fourier_shape_y = imag(fourier_shape);
+    
+                % Scale and shift the reconstructed shape to match original boundary
+                fourier_shape_x = round(mean(x_corodinates) + fourier_shape_x * std(x_corodinates));
+                fourier_shape_y = round(mean(y_coordinates) + fourier_shape_y * std(y_coordinates));
+                % Gets the shape of the object
+                shape = fourier_shape_x + 1i * fourier_shape_y;
+                
+            end
+        end
+    end
+
+    % Component initialization
+    methods (Access = private)
+
+        % Create UIFigure and components
+        function createComponents(app)
+
+            % Get the file path for locating images
+            pathToMLAPP = fileparts(mfilename('fullpath'));
+
+            % Create UIFigure and hide until all components are created
+            app.UIFigure = uifigure('Visible', 'off');
+            app.UIFigure.Color = [1 1 1];
+            app.UIFigure.Position = [100 100 640 480];
+            app.UIFigure.Name = 'MATLAB App';
+
+            % Create LoadImageButton
+            app.LoadImageButton = uibutton(app.UIFigure, 'push');
+            app.LoadImageButton.ButtonPushedFcn = createCallbackFcn(app, @LoadImageButtonPushed, true);
+            app.LoadImageButton.IconAlignment = 'center';
+            app.LoadImageButton.BackgroundColor = [0.902 0.902 0.902];
+            app.LoadImageButton.FontSize = 14;
+            app.LoadImageButton.FontWeight = 'bold';
+            app.LoadImageButton.Position = [114 89 100 25];
+            app.LoadImageButton.Text = 'Load Image';
+
+            % Create Image
+            app.Image = uiimage(app.UIFigure);
+            app.Image.Position = [15 146 297 295];
+            app.Image.ImageSource = fullfile(pathToMLAPP, 'chromosome.jpeg');
+
+            % Create Image3
+            app.Image3 = uiimage(app.UIFigure);
+            app.Image3.Position = [330 146 297 295];
+
+            % Create SaveDescriptorsButton
+            app.SaveDescriptorsButton = uibutton(app.UIFigure, 'push');
+            app.SaveDescriptorsButton.ButtonPushedFcn = createCallbackFcn(app, @SaveDescriptorsButtonPushed, true);
+            app.SaveDescriptorsButton.FontSize = 14;
+            app.SaveDescriptorsButton.FontWeight = 'bold';
+            app.SaveDescriptorsButton.Position = [256 30 129 25];
+            app.SaveDescriptorsButton.Text = 'Save Descriptors';
+
+            % Create SliderLabel
+            app.SliderLabel = uilabel(app.UIFigure);
+            app.SliderLabel.HorizontalAlignment = 'right';
+            app.SliderLabel.Position = [371 101 36 22];
+            app.SliderLabel.Text = 'Slider';
+
+            % Create Slider
+            app.Slider = uislider(app.UIFigure);
+            app.Slider.Limits = [0 200];
+            app.Slider.ValueChangingFcn = createCallbackFcn(app, @SliderValueChanging, true);
+            app.Slider.Position = [428 110 150 3];
+            app.Slider.Value = 5;
+
+            % Show the figure after all components are created
+            app.UIFigure.Visible = 'on';
+        end
+    end
+
+    % App creation and deletion
+    methods (Access = public)
+
+        % Construct app
+        function app = Project_Group10
+
+            % Create UIFigure and components
+            createComponents(app)
+
+            % Register the app with App Designer
+            registerApp(app, app.UIFigure)
+
+            if nargout == 0
+                clear app
+            end
+        end
+
+        % Code that executes before app deletion
+        function delete(app)
+
+            % Delete UIFigure when app is deleted
+            delete(app.UIFigure)
+        end
+    end
+end
