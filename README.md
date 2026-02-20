@@ -12,7 +12,9 @@ The application enables real-time reconstruction by adjusting the number of reta
 
 A 2D object boundary can be represented as a complex sequence:
 ```text
-z(k) = x(k) + i y(k)
+Applying the Discrete Fourier Transform:
+
+Z(m) = ∑ z(k) e^{-i 2πmk/N}
 ```
 Applying the Discrete Fourier Transform:
 ```text
@@ -151,13 +153,21 @@ Artificial Intelligence | Medical AI | Computer Vision
 
 ---
 
+## Contributors
+
+- Abdul Rafay Mohd — Algorithm design, MATLAB implementation, UI architecture, Fourier reconstruction logic
+- Ziya Mubeen Ahmed Mohammed — Analytical evaluation and experimentation
+- Abdul Sohail Mohammed — Report writing and presentation development
+
+---
+
 ## Citation
 
 If referencing this work, please cite:
 
 ```bibtex
 @software{rafay2025fourier,
-  author  = {Abdul Rafay Mohd},
+  author  = {Abdul Rafay Mohd and Ziya Mubeen Ahmed Mohammed and Abdul Sohail Mohammed},
   title   = {Fourier Boundary Reconstruction: Interactive Spectral Shape Modeling},
   year    = {2025},
   url     = {https://github.com/Mohd-Abdul-Rafay/matlab-fourier-boundary-reconstruction}
