@@ -16,28 +16,31 @@ This is a classical signal-processing demonstration tool, not a production segme
 ## 1. High-Level Architecture
 
 The system follows a layered interactive architecture:
-+––––––––––+
-|      UI Layer      |
-| (Buttons, Slider)  |
-+––––––––––+
-|
-v
-+––––––––––+
-|  Processing Layer  |
-| (Morphology + FFT) |
-+––––––––––+
-|
-v
-+––––––––––+
-| Reconstruction &   |
-| Visualization      |
-+––––––––––+
-|
-v
-+––––––––––+
-| Descriptor Export  |
-|   (Optional)       |
-+––––––––––+
+
+```text
++------------------------+
+|        UI Layer        |
+|   (Buttons, Slider)    |
++------------------------+
+            |
+            v
++------------------------+
+|    Processing Layer    |
+|  (Morphology + FFT)    |
++------------------------+
+            |
+            v
++------------------------+
+| Reconstruction &       |
+| Visualization Layer    |
++------------------------+
+            |
+            v
++------------------------+
+|   Descriptor Export    |
+|      (Optional)        |
++------------------------+
+```
 
 Each slider interaction triggers a full recomputation of the processing layer.
 
