@@ -1,151 +1,152 @@
-# Technical Notes — Fourier Boundary Reconstruction (MATLAB)
+# Technical Notes — Fourier Shape Descriptor Implementation
 
-This document records the technical decisions, algorithmic details, and known limitations for the Fourier Shape Descriptor reconstruction workflow implemented in `src/FourierShapeDescriptorApp.mlapp`.
-
-## 1) Problem Statement
-
-Given an input image containing a single dominant object (e.g., chromosome), we:
-
-1. Extract a boundary from a binarized edge map.
-2. Represent the boundary as a complex sequence.
-3. Compute Fourier descriptors via the DFT.
-4. Truncate descriptors to control compression.
-5. Reconstruct an approximate boundary using the inverse DFT.
-6. Visualize the reconstructed shape and optionally export descriptors.
-
-This is a classical, interpretable pipeline intended for study and controlled experimentation (not a production segmentation system).
+This document describes the mathematical formulation and implementation details of the Fourier shape descriptor workflow used in this project.
 
 ---
 
-## 2) Preprocessing Pipeline (Edge → Binary)
+## 1. Boundary Extraction
 
-### Morphological edge emphasis
-The app uses a morphological edge-like operation:
+Binary edge map is generated using morphological edge emphasis:
 
-- Dilate grayscale image: `I_d = imdilate(I, strel('disk', 5))`
-- Edge evidence: `E = I_d - I`
+1. Dilate grayscale image:
+   I_d = imdilate(I, strel('disk',5))
 
-This increases boundary contrast where dilation expands bright structures beyond their original support.
+2. Edge evidence:
+   E = I_d - I
 
-### Binarization
-- `B = imbinarize(E, "global")`
+3. Global thresholding:
+   B = imbinarize(E, "global")
 
-This is intentionally simple and deterministic. It is sensitive to illumination and object scale.
+Boundary extraction:
+   boundary = bwboundaries(B)
+   Selected boundary = boundary{1}
 
-**Assumption:** The binarized image contains one dominant foreground object with a clean boundary.
-
----
-
-## 3) Boundary Extraction
-
-- `bwboundaries(B)` returns boundary point sequences.
-- Current implementation selects `boundary{1}`.
-
-**Important limitation:** `boundary{1}` is not guaranteed to be the *largest* or *correct* boundary if multiple components exist.
-
-Recommended robust alternative (future work):
-- Select boundary with maximum length or maximum enclosed area.
+Assumption:
+The first detected boundary corresponds to the primary object.
 
 ---
 
-## 4) Fourier Descriptor Formulation
+## 2. Complex Boundary Representation
 
-Let boundary points be:
-- \( x_k, y_k \) for \( k = 0, 1, \dots, N-1 \)
+Let boundary coordinates be:
+x_k, y_k  for k = 1...N
 
-Normalize to reduce translation and scale sensitivity:
-- \( \tilde{x}_k = \frac{x_k - \mu_x}{\sigma_x} \)
-- \( \tilde{y}_k = \frac{y_k - \mu_y}{\sigma_y} \)
+Normalization:
+x̃_k = (x_k − mean(x)) / std(x)
+ỹ_k = (y_k − mean(y)) / std(y)
 
-Represent as complex sequence:
-- \( z_k = \tilde{x}_k + i\tilde{y}_k \)
+Complex form:
+z_k = x̃_k + i ỹ_k
 
-Fourier descriptors:
-- \( Z_m = \text{DFT}(z_k) \)
-
-Implementation uses:
-- `fftshift(fft(z))` for centered spectrum.
+This provides translation and scale normalization.
 
 ---
 
-## 5) Descriptor Truncation (Compression Control)
+## 3. Fourier Shape Descriptors
 
-The slider controls a parameter `r` that defines how many coefficients are preserved.
+Discrete Fourier Transform:
+Z_m = FFT(z_k)
 
-If \(N\) is number of boundary points:
-- Kept coefficients \( n \approx \text{round}(N / r) \)
+Implementation:
+fourier_descriptors = fftshift(fft(z))
 
-Coefficients retained symmetrically around DC in the shifted spectrum to preserve low-frequency structure.
-
-Reconstruction:
-- Zero all discarded coefficients.
-- \( \hat{z}_k = \text{IDFT}(\hat{Z}_m) \)
+The spectrum is shifted so DC component is centered.
 
 ---
 
-## 6) Reprojection to Image Space
+## 4. Descriptor Truncation
 
-The reconstructed complex sequence is mapped back to pixel coordinates using the original boundary statistics:
+Let:
+N = number of boundary points
+r = slider parameter
 
-- \( \hat{x}_k = \mu_x + \Re(\hat{z}_k)\sigma_x \)
-- \( \hat{y}_k = \mu_y + \Im(\hat{z}_k)\sigma_y \)
+Number of coefficients retained:
+n ≈ round(N / r)
 
-A sparse binary image is then created by setting pixels at \((\hat{x}_k, \hat{y}_k)\) to 1.
+Low-frequency band is preserved:
+- Keep centered coefficients
+- Zero out remaining coefficients
 
-**Note:** This produces a boundary trace, not a filled region. If you need a filled shape, apply `imfill` on the boundary mask after closing gaps.
+This removes high-frequency detail components.
 
----
-
-## 7) Exported Descriptors
-
-The “Save Descriptors” action exports a 1D descriptor representation to a text file.
-
-Current app behavior writes the reconstructed complex boundary coordinates (complex-valued sequence) rather than the Fourier coefficients.
-
-If the goal is to export **Fourier descriptors**, the exported vector should be the truncated coefficient set \( \hat{Z}_m \) (or magnitudes/phases), not boundary points.
-
-This is a definitional choice—documented here so users understand what is being saved.
+Effect:
+- Small r → more coefficients → detailed reconstruction
+- Large r → fewer coefficients → smooth reconstruction
 
 ---
 
-## 8) Complexity and Performance
+## 5. Reconstruction
 
-Brute complexity:
-- FFT/IDFT: \( O(N\log N) \)
-- Boundary extraction: depends on contour length.
-- Slider interaction: recomputes pipeline each change → can be heavy for large images.
+Truncated spectrum:
+Ẑ_m
 
-Practical guidance:
-- Resize input images to a consistent scale for smooth UI responsiveness.
-- Reduce boundary points via contour resampling if needed.
+Inverse transform:
+ẑ_k = IFFT(Ẑ_m)
 
----
+Reprojection:
+x̂_k = mean(x) + real(ẑ_k) * std(x)
+ŷ_k = mean(y) + imag(ẑ_k) * std(y)
 
-## 9) Known Failure Modes (Honest)
+Reconstructed binary image:
+Pixel locations (x̂_k, ŷ_k) set to 1.
 
-1. Multiple objects → wrong boundary chosen.
-2. Weak edges / low contrast → binarization produces fragmented contours.
-3. Boundary self-intersections → reconstruction may fold.
-4. Very small `r` (too aggressive truncation) → oversmoothing and shape collapse.
-5. Coordinate rounding may introduce gaps → boundary appears broken.
+Note:
+This produces a boundary trace, not a filled object.
 
 ---
 
-## 10) Suggested Improvements (Future Work)
+## 6. Computational Complexity
 
-- Largest-component boundary selection.
-- Adaptive thresholding (`imbinarize(..., 'adaptive')`) or Otsu on edges.
-- Contour resampling to fixed \(N\) for consistent descriptor comparison.
-- Export true Fourier coefficients + metadata (N, r, normalization).
-- Fill and post-process reconstruction for region-level masks.
+For N boundary points:
+
+FFT: O(N log N)
+Inverse FFT: O(N log N)
+
+Full pipeline per slider movement:
+- Morphology
+- Binarization
+- Boundary extraction
+- FFT + IFFT
+
+Total cost is moderate but may lag for very large images.
 
 ---
 
-## Reproducibility
+## 7. Numerical Characteristics
 
-This repo is designed as a reproducible classical baseline:
-- deterministic operations
-- explicit parameters
-- examples included under `examples/`
+- Coordinate normalization improves stability
+- Rounding may create boundary discontinuities
+- No contour resampling → descriptor length depends on boundary resolution
+- No invariance to rotation (beyond what FFT inherently provides)
+- No phase normalization step applied
 
-See `docs/architecture_overview.md` for a system-level view.
+---
+
+## 8. Failure Modes
+
+1. Multiple objects → wrong boundary selected
+2. Weak edges → fragmented contour
+3. Very high r → severe smoothing
+4. Very low r → minimal compression
+5. Coordinate rounding artifacts
+
+---
+
+## 9. What This Project Demonstrates
+
+- Classical Fourier-based shape representation
+- Frequency-domain truncation as geometric smoothing
+- Trade-off between descriptor compression and spatial fidelity
+- Interactive visualization of spectral information loss
+
+---
+
+## 10. Not Implemented (By Design)
+
+- Multi-object handling
+- Largest-component boundary selection
+- Descriptor comparison across shapes
+- Invariant normalization (rotation, scale beyond std normalization)
+- Boundary resampling to fixed N
+
+This is a controlled academic implementation for conceptual demonstration.
